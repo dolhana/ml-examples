@@ -5,8 +5,11 @@ name = "pypi"
 
 [dev-packages]
 pylint = "*"
+rope = "*"
 
 [packages]
+tensorflow = "*"
+gym = "*"
 
 [requires]
 python_version = "3.6"
