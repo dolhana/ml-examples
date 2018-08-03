@@ -7,7 +7,7 @@ class Model():
 
     def __init__(self, observation_dim: int, action_dim: int,
                  tau=0.001, gamma=0.99, critic_l2_rate=0.01,
-                 critic_learning_rate=0.001, actor_learning_rate=0.0001):
+                 critic_learning_rate=0.0001, actor_learning_rate=0.00001):
 
         self.observation_dim = observation_dim
         self.action_dim = action_dim
@@ -26,11 +26,6 @@ class Model():
             tf.float32, shape=[None, self.action_dim], name='actions')
         self.rewards = tf.placeholder(
             tf.float32, shape=[None, 1], name='rewards')
-        
-        tf.summary.tensor_summary('observations', self.observations)
-        tf.summary.tensor_summary('observations_next', self.observations_next)
-        tf.summary.tensor_summary('actions', self.actions)
-        tf.summary.tensor_summary('rewards', self.rewards)
 
         self.critic_training = tf.placeholder(tf.bool, name='critic_training')
         self.actor_training = tf.placeholder(tf.bool, name='actor_training')
@@ -46,8 +41,6 @@ class Model():
                 training=self.critic_training, reuse=True,
                 name='normalize_observation'
             )
-            tf.summary.tensor_summary('observations', self.normalized_observation)
-            tf.summary.tensor_summary('observations_next', self.normalized_observation_next)
 
         self.critic = Critic(
             self.normalized_observation, self.actions, training=self.critic_training)
@@ -61,11 +54,6 @@ class Model():
             self.normalized_observation_next, self.actor_target.mu,
             training=False, name='critic_target')
 
-        tf.summary.tensor_summary('q', self.critic.q)
-        tf.summary.tensor_summary('mu', self.actor.mu)
-        tf.summary.tensor_summary('target_q', self.critic_target.q)
-        tf.summary.tensor_summary('target_mu', self.actor_target.mu)
-
         # Set y_i = r_i + gamma * target_q(s_{i+1}, target_mu(s_{i+1}))
         y = self.rewards + self.gamma * self.critic_target.q
 
@@ -77,8 +65,8 @@ class Model():
                 tf.losses.get_regularization_loss(
                     scope=self.critic.name,
                     name='critic_regularization_loss')))
-        tf.summary.tensor_summary('critic_loss', self.critic_loss)
-        
+        tf.summary.scalar('critic_loss', self.critic_loss)
+
         batchnorm_update_ops = (
             tf.get_collection(tf.GraphKeys.UPDATE_OPS, scope=self.critic.name)
             + tf.get_collection(tf.GraphKeys.UPDATE_OPS, scope='normalized_observation')
@@ -89,15 +77,15 @@ class Model():
             self.critic_optimizer = tf.train.AdamOptimizer(
                 learning_rate=self.critic_learning_rate).minimize(
                     self.critic_loss, var_list=var_list)
-        
+
         # Update the actor policy using the sampled policy gradient
         #   J = mean( q(s_i, mu(s_i)) )
         # d_J = mean( d_q(s_i, mu(s_i)) * d_mu(s_i) )
         self.critic_with_actor = Critic(
             self.normalized_observation, self.actor.mu, training=False, reuse=True)
         self.actor_loss = - tf.reduce_mean(self.critic_with_actor.q)
-        tf.summary.tensor_summary('actor_loss', self.actor_loss)
-        
+        tf.summary.scalar('actor_loss', self.actor_loss)
+
         batchnorm_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS, scope=self.actor.name)
         with tf.control_dependencies(batchnorm_update_ops):
             var_list = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.actor.name)
@@ -123,10 +111,12 @@ class Model():
                     tf.assign(target_var, (1 - tau) * target_var + tau * origin_var))
             return tf.group(*init_ops), tf.group(*update_ops)
 
-        self.critic_target_init, self.critic_target_update = \
-            target_update_ops(self.critic_target, self.critic, self.tau)
-        self.actor_target_init, self.actor_target_update = \
-            target_update_ops(self.actor_target, self.actor, self.tau)
+        with tf.variable_scope('critic_target'):
+            self.critic_target_init, self.critic_target_update = \
+                target_update_ops(self.critic_target, self.critic, self.tau)
+        with tf.variable_scope('actor_target'):
+            self.actor_target_init, self.actor_target_update = \
+                target_update_ops(self.actor_target, self.actor, self.tau)
 
         self.summary_merged = tf.summary.merge_all()
 
@@ -149,7 +139,7 @@ class Model():
         return self.critic.q.eval(feed_dict={
             self.observations: observations, self.actions: actions,
             self.critic_training: False})
-    
+
     def learn(self, observations, actions, rewards, observations_next, dones):
         self.critic_optimizer.run(feed_dict={
             self.observations: observations,
@@ -198,16 +188,25 @@ class Critic():
 
         tf_regularizer = tf.contrib.layers.l2_regularizer(scale=1.)
 
-        def critic_states_hidden_layer(inputs: tf.Tensor, units: int):
+        def states_hidden_layer(inputs: tf.Tensor, units: int):
             net = tf.layers.dense(
-                inputs, units=64, use_bias=False,
+                inputs, units=units, use_bias=False,
                 kernel_initializer=hidden_layer_initializer(inputs),
                 kernel_regularizer=tf_regularizer)
             net = tf.layers.batch_normalization(net, training=training)
             net = tf.nn.relu(net)
             return net
 
-        def critic_final_layer(inputs: tf.Tensor):
+        def concat_hidden_layer(inputs: tf.Tensor, units: int):
+            net = tf.layers.dense(
+                inputs, units=units, use_bias=False,
+                kernel_initializer=hidden_layer_initializer(inputs),
+                kernel_regularizer=tf_regularizer)
+            net = tf.layers.batch_normalization(net, training=training)
+            net = tf.nn.relu(net)
+            return net
+
+        def final_layer(inputs: tf.Tensor):
             net = tf.layers.dense(
                 inputs, units=1, use_bias=True,
                 kernel_initializer=final_layer_initializer(),
@@ -218,14 +217,15 @@ class Critic():
         scope_reuse = True if reuse else tf.AUTO_REUSE
         with tf.variable_scope(self.name, reuse=scope_reuse):
             states_net = self.observations
-            states_net = critic_states_hidden_layer(states_net, 64)
-            states_net = critic_states_hidden_layer(states_net, 64)
+            states_net = states_hidden_layer(states_net, 256)
+            states_net = states_hidden_layer(states_net, 256)
 
             actions_net = self.actions
 
             net = tf.concat(values=[states_net, actions_net], axis=-1)
+            net = concat_hidden_layer(net, 256)
 
-            net = critic_final_layer(net)
+            net = final_layer(net)
             self.q = tf.identity(net, name='q')
 
 
@@ -236,7 +236,8 @@ class Actor():
         self.observations = observations
 
         def hidden_layer(inputs: tf.Tensor, units: int):
-            net = tf.layers.dense(inputs, units=units, use_bias=False, kernel_initializer=hidden_layer_initializer(inputs))
+            net = tf.layers.dense(inputs, units=units, use_bias=False,
+                                  kernel_initializer=hidden_layer_initializer(inputs))
             net = tf.layers.batch_normalization(net, training=training)
             return tf.nn.relu(net)
 
@@ -246,11 +247,9 @@ class Actor():
 
         with tf.variable_scope(self.name):
             net = self.observations
-            net = hidden_layer(net, units=64)
-            net = hidden_layer(net, units=64)
+            net = hidden_layer(net, units=256)
             net = final_layer(net)
             net = tf.nn.tanh(net)
-
             self.mu = tf.identity(net, name='mu')
 
 
