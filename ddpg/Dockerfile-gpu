@@ -1,0 +1,22 @@
+FROM tensorflow/tensorflow:latest-gpu-py3
+
+LABEL maintainer="Handol Park <handolpark12@gmail.com>"
+
+RUN add-apt-repository ppa:ubuntu-elisp/ppa -y && \
+    apt-get update && apt-get install -y --no-install-recommends \
+		        emacs25 git \
+  	        && \
+	  rm -rf /var/lib/apt/lists/*
+
+RUN git clone --depth=1 https://github.com/syl20bnr/spacemacs ~/.emacs.d && \
+	  curl -L -o ~/.spacemacs https://gist.githubusercontent.com/dolhana/16bcce5c59e670bc5468c40ebc8a71ff/raw/47f82018791d249a94ea3d8e96e9f6091558bf02/.spacemacs && \
+	  emacs --daemon && emacsclient -e '(kill-emacs)'
+
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+    	gym \
+      pylint pytest
+
+# Local Variables:
+# mode: dockerfile
+# End:
