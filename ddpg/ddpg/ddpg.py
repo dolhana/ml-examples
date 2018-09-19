@@ -45,7 +45,8 @@ class Agent():
 
             # Receive initial observation state s1
             observation = self.env.reset()
-            self.env.render()
+            if render:
+                self.env.render()
 
             for _t in range(1, num_steps_per_episode+1):
                 global_step_count += 1
@@ -59,7 +60,8 @@ class Agent():
                 # Execute action a_t and observe reward r_t and new state s_(t+1)
                 observation_next, reward, done, _info = self.env.step(action[0])
 
-                self.env.render()
+                if render:
+                    self.env.render()
 
                 # Store transition (s_t, a_t, r_t, s_(t+1)) in R
                 replaybuffer.add(observation, normalized_action, reward,

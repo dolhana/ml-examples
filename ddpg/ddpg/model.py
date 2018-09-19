@@ -3,6 +3,9 @@ import tensorflow as tf
 from gym import spaces
 
 
+def make_critic(observation: tf.Tensor, action: tf.Tensor):
+    tf.nn.dense()
+
 class Model():
 
     def __init__(self, observation_dim: int, action_dim: int,
