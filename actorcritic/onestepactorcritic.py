@@ -39,12 +39,12 @@ class Agent():
         self.reward_ph = tf.placeholder(
             tf.float32, shape=[None, 1], name='r')
         self.next_value_out = build_critic(self.next_state_ph, reuse=True)
-        self.advantage = self.reward_ph + self.discount_rate * self.next_value_out - self.value_out
+        self.advantage = tf.stop_gradient(self.reward_ph + self.discount_rate * self.next_value_out - self.value_out)
 
         self.action_ph = tf.placeholder(tf.float32, shape=[None, action_space.shape[0]], name='action')
-        self.advantage_ph = tf.placeholder(tf.float32, shape=[None, 1], name='advantage')
-        self.critic_loss = - tf.reduce_mean(self.value_out * self.advantage_ph)
-        self.actor_loss = - tf.reduce_mean(self.action_pd.log_prob(self.action_ph) * self.advantage_ph)
+        # self.advantage_ph = tf.placeholder(tf.float32, shape=[None, 1], name='advantage')
+        self.critic_loss = - tf.reduce_mean(self.value_out * self.advantage)
+        self.actor_loss = - tf.reduce_mean(self.action_pd.log_prob(self.action_ph) * self.advantage)
 
         # optimizers
         self.critic_optimizer = tf.train.AdamOptimizer(learning_rate=critic_lr).minimize(self.critic_loss)
@@ -72,7 +72,7 @@ class Agent():
         self.episode_steps += 1
 
         # train
-        _value_out_val, _next_value_out_val, advantage_val = tf.get_default_session().run(
+        _value_out_val, _next_value_out_val, _advantage_val = tf.get_default_session().run(
             [self.value_out, self.next_value_out, self.advantage],
             feed_dict={
                 self.state_ph: [self.last_state],
@@ -85,17 +85,17 @@ class Agent():
             feed_dict={
                 self.state_ph: [self.last_state],
                 self.action_ph: [self.last_action],
-                self.advantage_ph: advantage_val
+                self.reward_ph: [[reward]],
+                self.next_state_ph: [observation]
             })
         print([critic_loss_val, actor_loss_val, self.episode_return / self.episode_steps, self.last_action])
         tf.get_default_session().run(
             [self.critic_optimizer, self.actor_optimizer],
             feed_dict={
                 self.state_ph: [self.last_state],
-                #self.reward_ph: [[reward]],
                 self.action_ph: [self.last_action],
-                self.advantage_ph: advantage_val
-                #self.next_state_ph: [observation]
+                self.reward_ph: [[reward]],
+                self.next_state_ph: [observation]
             })
 
         self.last_state = observation
