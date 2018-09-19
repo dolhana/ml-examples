@@ -7,10 +7,13 @@ name = "pypi"
 pylint = "*"
 rope = "*"
 pytest = "*"
+"autopep8" = "*"
 
 [packages]
-tensorflow = "*"
+tensorflow = "!=1.10.1"
 gym = "*"
+#torch = {file = "http://download.pytorch.org/whl/cu92/torch-0.4.1-cp36-cp36m-win_amd64.whl"}
+#torchvision = "*"
 
 [requires]
 python_version = "3.6"
