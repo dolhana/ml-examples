@@ -118,17 +118,20 @@ class CriticModel():
 
 
 def main():
+    logdir = 'logdir'
+    os.makedirs(logdir, exist_ok=True)
+    run_logdir = tempfile.mkdtemp(dir=logdir)
+
     env = gym.make('Pendulum-v0')
+    monitored_env = gym.wrappers.Monitor(env, os.path.join(run_logdir, 'gym'), force=True)
 
     tf_graph = tf.Graph()
     with tf_graph.as_default():
         agent = Agent(env, gamma=0.99, lambda_=0.95, critic_lr=1e-4, actor_lr=1e-4)
 
     # TB: Setup a summary FileWriter
-    tb_logdir = 'tb_logdir'
-    run_logdir = tempfile.mkdtemp(dir=tb_logdir)
-    summary_writer = tf.summary.FileWriter(run_logdir, tf_graph)
-    print('tensorboard logdir:', tb_logdir)
+    summary_writer = tf.summary.FileWriter(os.path.join(run_logdir, 'tb'), tf_graph)
+    print('tensorboard logdir:', logdir)
 
     tf.InteractiveSession(graph=tf_graph)
     tf.global_variables_initializer().run()

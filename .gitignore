@@ -106,4 +106,4 @@ venv.bak/
 # Visual Studio Code
 /.vscode/
 
-tb_logdir/
+logdir/
