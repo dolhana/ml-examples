@@ -32,7 +32,7 @@ class Agent():
             self.action_out = self.action_pd.sample(name='action')
 
         self.value_out = build_critic(self.state_ph)
-        
+
         # losses
         self.next_state_ph = tf.placeholder(
             tf.float32, shape=[None] + list(self.observation_space.shape), name='s1')

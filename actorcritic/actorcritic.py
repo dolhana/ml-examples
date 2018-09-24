@@ -2,6 +2,7 @@
 
 import tempfile
 import os
+from xvfbwrapper import Xvfb
 import tensorflow as tf
 import gym
 
@@ -37,7 +38,7 @@ class Agent():
             self.actor_optimizer = \
                 tf.train.AdamOptimizer(learning_rate=self.actor_lr) \
                 .minimize(self.actor_loss)
-    
+
     def train(self, n_iterations, t_max, n_epochs, batch_size, summary_writer):
         obs0 = self.env.reset()
         done = False
@@ -59,7 +60,7 @@ class Agent():
                 for i in range(-2, -2 - t, -1):
                     td_residual *= self.gamma * self.lambda_
                     advs[i] += td_residual
-                
+
                 if done:
                     obs0 = self.env.reset()
                     done = False
@@ -83,7 +84,7 @@ class Agent():
             tf.get_default_session().run(
                 [self.critic_optimizer, self.actor_optimizer], feed_dict=feed_dict
             )
-            
+
 
 
 class ActorModel():
@@ -119,15 +120,17 @@ class CriticModel():
 
 def main():
     logdir = 'logdir'
-    os.makedirs(logdir, exist_ok=True)
-    run_logdir = tempfile.mkdtemp(dir=logdir)
+    # os.makedirs(logdir, exist_ok=True)
+    # run_logdir = tempfile.mkdtemp(dir=logdir)
+    run_logdir = os.path.join(logdir, 'dev')
+    os.makedirs(run_logdir, exist_ok=True)
 
     env = gym.make('Pendulum-v0')
     monitored_env = gym.wrappers.Monitor(env, os.path.join(run_logdir, 'gym'), force=True)
 
     tf_graph = tf.Graph()
     with tf_graph.as_default():
-        agent = Agent(env, gamma=0.99, lambda_=0.95, critic_lr=1e-4, actor_lr=1e-4)
+        agent = Agent(monitored_env, gamma=0.99, lambda_=0.95, critic_lr=1e-4, actor_lr=1e-4)
 
     # TB: Setup a summary FileWriter
     summary_writer = tf.summary.FileWriter(os.path.join(run_logdir, 'tb'), tf_graph)
@@ -136,7 +139,8 @@ def main():
     tf.InteractiveSession(graph=tf_graph)
     tf.global_variables_initializer().run()
 
-    agent.train(10000, 10, 1, 1, summary_writer)
+    with Xvfb(width=1280, height=1024) as xvfb:
+        agent.train(10**6, 64, 1, 64, summary_writer)
 
     summary_writer.close()
 
