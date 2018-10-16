@@ -1,57 +1,14 @@
-from typing import Tuple, Callable
+# pylint: unused-import
+"""Demonstrates Proximal Policy Optimization algorithm
+
+arXiv:1707.06347 [cs.LG]
+https://arxiv.org/abs/1707.06347
+"""
+import argparse
+import asyncio
+
 import tensorflow as tf
 import gym
-
-
-class Agent():
-    """OpenAI gym agent"""
-
-    def __init__(self, env, model_builder):
-        """Creates an agent that interacts with the given env"""
-        self.env = env
-        self.last_state = None
-        self.done = True
-        self.model = model_builder(env)
-
-    def step(self, auto_restart_episode=True):
-        """agent.step() runs one step in the environment
-
-        Args:
-	        auto_restart_episode (bool):
-        				If True, resets the env and runs a step if self.done == True.
-        				If False, tries to run a step even if self.done == True.
-
-        Returns:
-        	(prev_state, action, reward, cur_state, done, info)
-        """
-        if self.done and auto_restart_episode:
-            self.restart_episode()
-
-        action = self.choose_action(self.last_state)
-        state, reward, done, _info = self.env.step(action)
-
-        return self.last_state, action, reward, state, done, _info
-
-    def restart_episode(self):
-        """Resets the environment to start a new episode
-
-        Returns:
-        	state:	a new state
-        """
-        self.last_state = self.env.reset()
-        self.done = False
-
-    def choose_action(self, state):
-        """Choose an action based on the state
-
-        Args:
-        	state:	agent chooses an action based on this state
-
-        Returns:
-        	action
-        """
-        action = self.model.choose_action(self.last_state)
-        return action
 
 
 class PPOModel():
@@ -136,3 +93,60 @@ class PPOModel():
                 self.action_ph: actions,
                 self.advantage_ph: advantages
             })
+
+
+def build_argparser():
+    argparser = argparse.ArgumentParser(description='Demonstrates Proximal Policy Optimization')
+    argparser.add_argument(
+        '--env-id', help='OpenAI gym environment ID; defaults to "Pendulum-v0"',
+        dest='env_id', default='Pendulum-v0')
+    argparser.add_argument(
+        '--num-agents', help='The number of agents that explore the environment simulateneously',
+        dest='n_agents', default=1)
+    argparser.add_argument(
+        '--horizon', help='The maximum number of steps that each agent can take in each iteration',
+        dest='horizon', default=200)
+    argparser.add_argument(
+        '--num-iterations', help='The number of iterations',
+        dest='n_iterations', default=1)
+    return argparser
+
+
+def make_policy(env_id):
+    env = gym.make(env_id)
+    return lambda _state: env.action_space.sample()
+
+def make_agent(env_id, policy):
+    class Agent:
+        def __init__(self, env_id, policy):
+            self.env = gym.make(env_id)
+            self.policy = policy
+
+        def __call__(self, horizon):
+            return self.explore(horizon)
+
+        def explore(self, horizon):
+            trajectory = []
+            done = False
+            for step_i in range(horizon):
+
+def main():
+    """Demonstrates Proximal Policy Optimization"""
+    argparser = build_argparser()
+    args = argparser.parse_args()
+
+    loop = asyncio.get_event_loop()
+
+    # PPO algorithm, actor-critic style
+
+    # Make the model
+    policy = make_policy(args.env_id)
+
+    agents = [make_agent(args.env_id, policy) for _ in range(args.n_agents)]
+
+    for i_iter in range(args.n_iterations):
+        trajectories_future = asyncio.gather()
+        loop.run_until_complete(trajectories_future)
+
+if __name__ == '__main__':
+    main()

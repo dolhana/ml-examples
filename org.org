@@ -1,5 +1,0 @@
-* Heading 1
-
-\begin{equation}
-x=\sqrt{b}
-\end{equation}
